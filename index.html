@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>FusionOS Lite v4.6 (Stealth)</title>
+
+  <!-- PWA Settings -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Dependências Externas -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- ESTILOS (CSS Separado) -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap');
+
+    :root {
+      --bg-color: #000000;
+      --glass-panel: rgba(30, 30, 35, 0.4);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --glass-highlight: rgba(255, 255, 255, 0.15);
+      --accent: #38bdf8; /* Sky-400 */
+      --accent-glow: rgba(56, 189, 248, 0.4);
+      --depth-shadow: 0 20px 50px -10px rgba(0,0,0,0.7);
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      background-image: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #000 60%);
+      background-attachment: fixed;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+    /* LAYOUT PRINCIPAL */
+    #fusion-root {
+      max-width: 900px;
+      margin: 0 auto;
+      padding-bottom: 140px;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* CARDS */
+    .fusion-card {
+      background: rgba(20, 20, 22, 0.7);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border: 1px solid var(--glass-border);
+      border-radius: 28px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+      animation: fade-in-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      opacity: 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    
+    .fusion-card.active-focus {
+      border-color: rgba(255,255,255,0.3);
+      box-shadow: 0 0 40px rgba(56, 189, 248, 0.15);
+      transform: scale(1.01);
+    }
+
+    .fusion-header {
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+      padding: 18px 24px;
+    }
+    .fusion-header:hover { background: rgba(255, 255, 255, 0.04); }
+
+    .fusion-body {
+      transition: max-height 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+      max-height: 2000px; 
+      opacity: 1;
+      background: #050505;
+    }
+
+    .fusion-card.minimized {
+      background: rgba(15, 15, 15, 0.4);
+      border-color: rgba(255, 255, 255, 0.03);
+      transform: scale(0.98);
+      margin-bottom: 12px;
+    }
+    .fusion-card.minimized .fusion-body {
+      max-height: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .fusion-card.minimized .chevron-icon { transform: rotate(-90deg); }
+    .chevron-icon { transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+
+    /* ORB (MENU BUTTON) */
+    .lite-orb {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(60, 60, 60, 0.5);
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 50;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .lite-orb:hover {
+      transform: translateX(-50%) scale(1.2);
+      background: rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.4);
+    }
+    .lite-orb i { color: #fff; opacity: 0.9; }
+
+    /* DASHBOARD OVERLAY */
+    #dashboard-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 10, 10, 0.4); /* Fundo um pouco mais escuro para contraste */
+      backdrop-filter: blur(50px) saturate(120%);
+      -webkit-backdrop-filter: blur(50px) saturate(120%);
+      z-index: 40;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(1.1);
+      transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    #dashboard-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+      transform: scale(1);
+    }
+
+    /* GRID */
+    .app-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 32px;
+      max-width: 900px;
+      padding: 40px;
+      margin-bottom: 60px; /* Espaço extra para o dock não bater */
+    }
+    
+    .app-icon-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      group: focus;
+    }
+    
+    .app-icon-box {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .app-icon-btn:hover .app-icon-box {
+      transform: translateY(-8px) scale(1.1);
+      background: linear-gradient(145deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1));
+      border-color: rgba(255,255,255,0.4);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(255,255,255,0.1);
+    }
+    .app-icon-box.sys { 
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(30, 64, 175, 0.2));
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+    .app-icon-label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.6);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      transition: color 0.2s;
+    }
+    .app-icon-btn:hover .app-icon-label { color: #fff; }
+
+    /* INPUT BAR */
+    .vision-input-bar {
+      width: 100%;
+      max-width: 500px;
+      height: 56px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 100px;
+      display: flex;
+      align-items: center;
+      padding: 0 8px 0 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      transition: all 0.3s;
+    }
+    .vision-input-bar:focus-within {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+      transform: translateY(-2px);
+    }
+    .vision-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 15px;
+      outline: none;
+    }
+    .vision-btn-add {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: #fff;
+      color: #000;
+      display: flex; align-items: center; justify-content: center;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .vision-btn-add:hover { transform: scale(1.1); }
+
+    /* DOCK MINIMALISTA (NOVA) */
+    .control-dock {
+      position: absolute;
+      bottom: 110px; /* Acima do Orb */
+      display: flex;
+      gap: 4px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 4px 6px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.05);
+      backdrop-filter: blur(8px);
+      
+      /* Efeito "Stealth": Pequeno e transparente até o hover */
+      opacity: 0.4;
+      transform: scale(0.9);
+      transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    
+    .control-dock:hover {
+      opacity: 1;
+      transform: scale(1);
+      background: rgba(30, 30, 35, 0.6);
+      border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .dock-btn {
+      padding: 6px 14px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.5);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dock-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .dock-btn.danger:hover { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .dock-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: auto 4px; }
+
+    /* BOTINOT */
+    #botinot-container {
+      position: fixed;
+      bottom: 40px;
+      right: 40px;
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+      pointer-events: none;
+    }
+    .bot-msg {
+      background: rgba(30, 30, 35, 0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(12px);
+      padding: 14px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      color: #eee;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      animation: slide-in-right 0.4s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+      pointer-events: all;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .bot-avatar {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, #38bdf8, #2563eb);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 12px; color: #fff;
+    }
+
+    @keyframes fade-in-up { from { opacity:0; transform:translateY(30px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
+    @keyframes slide-in-right { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
+    iframe { display: block; background: #000; border-radius: 0 0 24px 24px; }
+    .bg-glow {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: -1;
+        background: radial-gradient(circle at 50% -20%, rgba(56, 189, 248, 0.08), transparent 70%);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="bg-glow"></div>
+
+  <!-- ESTRUTURA PRINCIPAL -->
+  <div id="fusion-root">
+    
+    <!-- Header minimalista -->
+    <div class="pt-20 pb-10 px-6 text-center">
+      <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-white drop-shadow-lg">FusionOS <span class="text-sky-400 font-light">Vision</span></h1>
+      <div class="flex items-center justify-center gap-2 text-xs font-semibold text-white/30 uppercase tracking-[0.2em]">
+        <span class="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-[0_0_10px_#38bdf8]"></span>
+        <span>Sistema Operacional v4.6</span>
+      </div>
+    </div>
+
+    <!-- Feed de Apps -->
+    <div id="fusion-feed" class="px-4 md:px-6 relative max-w-4xl mx-auto">
+      <!-- Injetado via JS -->
+    </div>
+
+  </div>
+
+  <!-- ORB (Menu Trigger) -->
+  <button class="lite-orb" id="fusion-orb" onclick="FusionOS.toggleDashboard()" title="Abrir Home">
+    <i data-lucide="layout-grid" width="24"></i>
+  </button>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard-overlay" onclick="if(event.target === this) FusionOS.toggleDashboard()">
+    
+    <!-- Barra de Input Flutuante -->
+    <div class="vision-input-bar mb-12">
+      <i data-lucide="search" class="text-white/40 mr-3" width="18"></i>
+      <input type="text" id="module-url-input" class="vision-input" placeholder="Digite uma URL para instalar..." onkeydown="if(event.key === 'Enter') FusionOS.addUrlModule()">
+      <button onclick="FusionOS.addUrlModule()" class="vision-btn-add">
+        <i data-lucide="plus" width="20"></i>
+      </button>
+    </div>
+
+    <!-- Grade de Apps -->
+    <div id="dashboard-grid" class="app-grid">
+      <!-- Ícones Injetados via JS -->
+    </div>
+
+    <!-- Dock de Controle (Stealth Mode) -->
+    <div class="control-dock">
+      <button onclick="FusionOS.expandAll()" class="dock-btn">Expandir</button>
+      <button onclick="FusionOS.minimizeAll()" class="dock-btn">Minimizar</button>
+      <div class="dock-divider"></div>
+      <button onclick="FusionOS.Botinot.say('Todos os sistemas operacionais.')" class="dock-btn">Status</button>
+      <button onclick="FusionOS.resetSystem()" class="dock-btn danger">Reset</button>
+    </div>
+
+  </div>
+
+  <!-- NOTIFICAÇÕES -->
+  <div id="botinot-container"></div>
+
+  <!-- LÓGICA DO SISTEMA -->
+  <script>
+    const FusionOS = (() => {
+        // --- CONFIG ---
+        const CONFIG = {
+            storageKey: 'fusion_os_v45_apps',
+            stateKey: 'fusion_os_v45_ui',
+            voiceEnabled: false
+        };
+
+        const DEFAULT_APPS = [
+            { 
+                id: 'SYS_TERMINAL', 
+                name: 'Terminal', 
+                type: 'sys', 
+                icon: 'terminal-square', 
+                active: true,
+                desc: 'Prompt de comando'
+            },
+            { 
+                id: 'APP_HUB', 
+                name: 'Delta Hub', 
+                url: 'https://kodux78k.github.io/DualInfodose-VirgemHuB/index.html', 
+                icon: 'globe', 
+                active: true,
+                desc: 'Navegador Web'
+            }
+        ];
+
+        let _state = { apps: [], uiStates: {} };
+
+        // --- STORAGE ---
+        const Storage = {
+            save: () => {
+                localStorage.setItem(CONFIG.storageKey, JSON.stringify(_state.apps));
+                localStorage.setItem(CONFIG.stateKey, JSON.stringify(_state.uiStates));
+            },
+            load: () => {
+                const rawApps = localStorage.getItem(CONFIG.storageKey);
+                const rawUI = localStorage.getItem(CONFIG.stateKey);
+                
+                if (rawApps) {
+                    try { _state.apps = JSON.parse(rawApps); } catch(e) { _state.apps = [...DEFAULT_APPS]; }
+                } else { _state.apps = [...DEFAULT_APPS]; }
+
+                if (rawUI) {
+                    try { _state.uiStates = JSON.parse(rawUI); } catch(e) { _state.uiStates = {}; }
+                }
+            }
+        };
+
+        // --- BOTINOT ---
+        const Botinot = {
+            say: (msg, type = 'info') => {
+                const container = document.getElementById('botinot-container');
+                const el = document.createElement('div');
+                el.className = 'bot-msg';
+                
+                // Avatar dinâmico
+                const icon = type === 'error' ? 'alert-triangle' : (type === 'success' ? 'check' : 'info');
+                const color = type === 'error' ? '#ef4444' : '#38bdf8';
+                
+                el.innerHTML = `
+                    <div class="bot-avatar" style="background: linear-gradient(135deg, ${color}, #000)">
+                        <i data-lucide="${icon}" width="14" color="white"></i>
+                    </div>
+                    <div class="flex-1 font-medium text-sm leading-tight">${msg}</div>
+                `;
+                
+                container.appendChild(el);
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    el.style.opacity = '0';
+                    el.style.transform = 'translateX(20px)';
+                    setTimeout(() => el.remove(), 400);
+                }, 4000);
+            }
+        };
+
+        // --- RENDER ---
+        const Renderer = {
+            stream: () => {
+                const feed = document.getElementById('fusion-feed');
+                feed.innerHTML = '';
+
+                _state.apps.forEach(app => {
+                    if (app.type === 'sys') {
+                        // Terminal estilo Glass Dark
+                        feed.innerHTML += `
+                            <div class="fusion-card p-1">
+                                <div class="bg-black/60 p-5 rounded-[24px] flex items-center gap-4">
+                                    <i data-lucide="terminal" class="text-sky-500 w-5 h-5"></i>
+                                    <input type="text" 
+                                        class="bg-transparent w-full text-sm font-mono focus:outline-none text-white placeholder-white/20 uppercase tracking-widest" 
+                                        placeholder="Digite um comando..." 
+                                        onkeydown="if(event.key === 'Enter'){ FusionOS.handleCommand(this.value); this.value=''; }">
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    const isMin = _state.uiStates[app.id] === true;
+                    const card = document.createElement('div');
+                    card.className = `fusion-card flex flex-col ${isMin ? 'minimized' : ''}`;
+                    card.id = `card-${app.id}`;
+
+                    // Header Moderno
+                    const headerHTML = `
+                        <div class="fusion-header flex items-center justify-between" onclick="FusionOS.toggleCard('${app.id}')">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center text-sky-300 shadow-inner">
+                                    <i data-lucide="${app.icon || 'box'}" width="18"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-sm text-white/90 leading-tight">${app.name}</h3>
+                                    <div class="text-[10px] text-white/40 font-mono tracking-wide">${app.url ? new URL(app.url).hostname : 'LOCAL'}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="text-white/20 chevron-icon mr-2"><i data-lucide="chevron-down" width="18"></i></div>
+                                <button onclick="event.stopPropagation(); FusionOS.reloadApp('${app.id}')" class="p-2 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition"><i data-lucide="refresh-cw" width="14"></i></button>
+                                <button onclick="event.stopPropagation(); FusionOS.removeApp('${app.id}')" class="p-2 hover:bg-red-500/20 rounded-full text-white/40 hover:text-red-400 transition"><i data-lucide="x" width="14"></i></button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Body
+                    const body = document.createElement('div');
+                    body.className = 'fusion-body flex-1 relative';
+                    
+                    if (isMin) { body.style.maxHeight = '0px'; body.style.opacity = '0'; }
+
+                    if (app.url) {
+                        const src = isMin ? 'about:blank' : app.url;
+                        body.innerHTML = `<iframe src="${src}" data-real-src="${app.url}" class="w-full h-[600px] border-none" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"></iframe>`;
+                    } else if (app.html) {
+                         body.innerHTML = `<div class="p-6">${app.html}</div>`;
+                    }
+
+                    card.innerHTML = headerHTML;
+                    card.appendChild(body);
+                    feed.appendChild(card);
+                });
+                lucide.createIcons();
+            },
+
+            dashboard: () => {
+                const grid = document.getElementById('dashboard-grid');
+                grid.innerHTML = '';
+
+                _state.apps.forEach(app => {
+                    const isSys = app.type === 'sys';
+                    const item = document.createElement('button');
+                    item.className = 'app-icon-btn group';
+                    item.onclick = () => {
+                        FusionOS.scrollToApp(app.id);
+                        FusionOS.toggleDashboard();
+                    };
+
+                    // Ícone Circular Estilo Vision
+                    item.innerHTML = `
+                        <div class="app-icon-box ${isSys ? 'sys' : ''}">
+                            <i data-lucide="${app.icon || 'box'}" class="${isSys ? 'text-sky-300' : 'text-white'}" width="32" stroke-width="1.5"></i>
+                            ${_state.uiStates[app.id] ? '' : '<div class="absolute bottom-2 w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white]"></div>'}
+                        </div>
+                        <span class="app-icon-label">${app.name}</span>
+                    `;
+                    grid.appendChild(item);
+                });
+                lucide.createIcons();
+            }
+        };
+
+        // --- CORE ---
+        return {
+            init: () => {
+                console.log("FusionOS Vision Boot...");
+                Storage.load();
+                Renderer.stream();
+                Renderer.dashboard();
+                setTimeout(() => Botinot.say("Ambiente pronto."), 800);
+            },
+
+            Botinot: Botinot,
+
+            toggleDashboard: () => {
+                const dash = document.getElementById('dashboard-overlay');
+                const isOpen = dash.classList.contains('open');
+                
+                if (isOpen) {
+                    dash.classList.remove('open');
+                } else {
+                    Renderer.dashboard(); 
+                    dash.classList.add('open');
+                    setTimeout(() => document.getElementById('module-url-input').focus(), 100);
+                }
+            },
+
+            toggleCard: (id) => {
+                const card = document.getElementById(`card-${id}`);
+                if (!card) return;
+                const isNowMin = card.classList.toggle('minimized');
+                _state.uiStates[id] = isNowMin;
+                Storage.save();
+                // Iframe logic
+                const iframe = card.querySelector('iframe');
+                if (iframe && iframe.dataset.realSrc) iframe.src = isNowMin ? 'about:blank' : iframe.dataset.realSrc;
+                
+                // Se estivermos no dashboard, atualiza os indicadores (pontinhos verdes)
+                Renderer.dashboard();
+            },
+
+            minimizeAll: () => {
+                _state.apps.forEach(app => { if(app.type !== 'sys' && !_state.uiStates[app.id]) FusionOS.toggleCard(app.id); });
+                Botinot.say("Foco ativado (Minimizado).");
+                FusionOS.toggleDashboard();
+            },
+
+            expandAll: () => {
+                _state.apps.forEach(app => { if(app.type !== 'sys' && _state.uiStates[app.id]) FusionOS.toggleCard(app.id); });
+                Botinot.say("Visão expandida.");
+                FusionOS.toggleDashboard();
+            },
+
+            addUrlModule: () => {
+                const input = document.getElementById('module-url-input');
+                let url = input.value.trim();
+                if (!url) return;
+
+                if (!url.startsWith('http')) url = 'https://' + url;
+
+                const newApp = {
+                    id: 'MOD_' + Date.now(),
+                    name: new URL(url).hostname.replace('www.','').split('.')[0].toUpperCase(), // Tenta extrair um nome curto
+                    url: url,
+                    icon: 'globe',
+                    active: true
+                };
+
+                _state.apps.unshift(newApp); 
+                _state.uiStates[newApp.id] = false; 
+                Storage.save();
+                Renderer.stream();
+                Renderer.dashboard();
+                input.value = '';
+                Botinot.say("Módulo " + newApp.name + " adicionado.", "success");
+                FusionOS.toggleDashboard();
+            },
+
+            removeApp: (id) => {
+                if(!confirm('Remover módulo?')) return;
+                _state.apps = _state.apps.filter(a => a.id !== id);
+                delete _state.uiStates[id];
+                Storage.save();
+                Renderer.stream();
+                Botinot.say("Módulo removido.");
+            },
+
+            reloadApp: (id) => {
+                const card = document.getElementById(`card-${id}`);
+                const iframe = card?.querySelector('iframe');
+                if(iframe && iframe.dataset.realSrc) {
+                    iframe.src = iframe.dataset.realSrc;
+                    Botinot.say("Recarregando...");
+                }
+            },
+
+            scrollToApp: (id) => {
+                const el = document.getElementById(id === 'SYS_TERMINAL' ? 'fusion-feed' : `card-${id}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.classList.add('active-focus');
+                    setTimeout(() => el.classList.remove('active-focus'), 2000);
+                }
+            },
+
+            handleCommand: (cmd) => {
+                const raw = cmd.trim().toUpperCase();
+                if(!raw) return;
+                if (raw === 'RESET') FusionOS.resetSystem();
+                else if (raw.startsWith('ADD ')) {
+                    const url = cmd.split(' ')[1];
+                    if(url) {
+                        document.getElementById('module-url-input').value = url;
+                        FusionOS.addUrlModule();
+                    }
+                } else Botinot.say("Comando desconhecido.", "error");
+            },
+
+            resetSystem: () => {
+                if(confirm("HARD RESET: Apagar tudo?")) {
+                    localStorage.removeItem(CONFIG.storageKey);
+                    localStorage.removeItem(CONFIG.stateKey);
+                    location.reload();
+                }
+            }
+        };
+    })();
+
+    window.addEventListener('DOMContentLoaded', FusionOS.init);
+  </script>
+</body>
+</html>
+
+
